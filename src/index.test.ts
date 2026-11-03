@@ -32,6 +32,40 @@ test("reasoning levels are lower-cased", () => {
   expect(m.variants.map((v) => v.id)).toEqual(["low", "high"] as any)
 })
 
+test("maps tool support and input limits", () => {
+  const [m] = toModels("magpie", [{
+    id: "x",
+    context_length: 128_000,
+    context_window: 256_000,
+    max_input_tokens: 120_000,
+    max_output_tokens: 8_192,
+    tool_call: false,
+    supported_parameters: ["tools", "reasoning"],
+  }])
+  expect(m.capabilities.tools).toBe(false)
+  expect(m.limit).toEqual({ context: 128_000, input: 120_000, output: 8_192 })
+})
+
+test("falls back to context_window and supported_parameters", () => {
+  const [m] = toModels("magpie", [{
+    id: "x",
+    context_window: 32_768,
+    supported_parameters: ["tools"],
+  }])
+  expect(m.limit.context).toBe(32_768)
+  expect(m.capabilities.tools).toBe(true)
+})
+
+test("supported_parameters without tools disables tools", () => {
+  const [m] = toModels("magpie", [{ id: "x", supported_parameters: ["temperature"] }])
+  expect(m.capabilities.tools).toBe(false)
+})
+
+test("keeps the default tool capability when no tool metadata exists", () => {
+  const [m] = toModels("magpie", [{ id: "x" }])
+  expect(m.capabilities.tools).toBe(true)
+})
+
 test("rejects a response without a data array and drops entries without an id", () => {
   expect(() => parseList({ error: "nope" })).toThrow()
   expect(parseList({ data: [{ id: "a" }, { id: 3 }, null] }).map((m) => m.id)).toEqual(["a"])

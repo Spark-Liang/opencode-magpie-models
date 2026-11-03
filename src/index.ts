@@ -9,10 +9,14 @@ type Raw = {
   magpie_label?: string
   display_name?: string
   context_length?: number
+  context_window?: number
+  max_input_tokens?: number
   max_output_tokens?: number
   modalities?: { input?: string[]; output?: string[] }
   reasoning?: boolean
   reasoning_levels?: string[]
+  tool_call?: boolean
+  supported_parameters?: string[]
 }
 
 const positive = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n > 0
@@ -24,19 +28,34 @@ export function toModels(providerID: string, raws: readonly Raw[]): Model.Info[]
     const base = Model.Info.default(pid, Model.ID.make(raw.id))
     // some vendors list them upper-case (Zed's Gemini: LOW); Magpie reads any case
     const levels = raw.reasoning && strings(raw.reasoning_levels) ? [...new Set(raw.reasoning_levels.map((l) => l.toLowerCase()))] : []
+    // Prefer the explicit boolean. If a gateway omits it, supported_parameters is
+    // the next best signal; otherwise keep OpenCode's default.
+    const tools =
+      typeof raw.tool_call === "boolean"
+        ? raw.tool_call
+        : Array.isArray(raw.supported_parameters)
+          ? raw.supported_parameters.includes("tools")
+          : base.capabilities.tools
+    const context = positive(raw.context_length)
+      ? raw.context_length
+      : positive(raw.context_window)
+        ? raw.context_window
+        : base.limit.context
     return {
       ...base,
       name: raw.magpie_label ?? raw.display_name ?? raw.id,
       capabilities: {
         ...base.capabilities,
+        tools,
         // Magpie rejects images for a model it marks blind, and OpenCode only sends what is declared
         input: strings(raw.modalities?.input) ? raw.modalities.input : ["text"],
         output: strings(raw.modalities?.output) ? raw.modalities.output : ["text"],
       },
       variants: levels.map((e) => ({ id: Model.VariantID.make(e), settings: { reasoningEffort: e } })),
       limit: {
-        context: positive(raw.context_length) ? raw.context_length : base.limit.context,
+        context,
         output: positive(raw.max_output_tokens) ? raw.max_output_tokens : base.limit.output,
+        ...(positive(raw.max_input_tokens) ? { input: raw.max_input_tokens } : {}),
       },
     }
   })
@@ -53,13 +72,17 @@ const home = (p: string) => (p.startsWith("~/") ? join(homedir(), p.slice(2)) : 
 export default Plugin.define({
   id: "opencode-magpie-models",
   async setup(ctx) {
-    const o = ctx.options as { baseURL?: unknown; keyFile?: unknown; id?: unknown; name?: unknown; refreshMinutes?: unknown }
-    if (typeof o.baseURL !== "string" || typeof o.keyFile !== "string")
-      throw new Error("opencode-magpie-models: options baseURL and keyFile are required")
+    const o = ctx.options as { baseURL?: unknown; keyFile?: unknown; apiKey?: unknown; id?: unknown; name?: unknown; refreshMinutes?: unknown }
+    if (typeof o.baseURL !== "string")
+      throw new Error("opencode-magpie-models: options baseURL is required")
     const baseURL = o.baseURL.replace(/\/+$/, "")
     const id = typeof o.id === "string" ? o.id : "magpie"
     const name = typeof o.name === "string" ? o.name : "Magpie"
-    const key = (await readFile(home(o.keyFile), "utf8")).trim()
+    const inlineKey = typeof o.apiKey === "string" ? o.apiKey.trim() : ""
+    const keyFile = typeof o.keyFile === "string" ? o.keyFile.trim() : ""
+    if (!inlineKey && !keyFile)
+      throw new Error("opencode-magpie-models: options apiKey or keyFile is required")
+    const key = inlineKey || (await readFile(home(keyFile), "utf8")).trim()
     const cacheFile = join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "opencode-magpie-models", `${id}.json`)
 
     const fetchList = async () => {

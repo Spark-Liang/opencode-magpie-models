@@ -4,8 +4,10 @@
 provider whose models come from Magpie's `/v1/models`, so no model list has to be written into
 `opencode.jsonc` or kept up to date by hand.
 
-Each model gets Magpie's label, context and output limits, input types (text, image, pdf, …) and
-reasoning levels (low … max, as OpenCode variants). The list is read when OpenCode starts and again
+Each model gets Magpie's label, context and input/output limits, input types (text, image, pdf, …),
+explicit tool support, temperature support and reasoning levels (low … max, as OpenCode variants).
+When `tool_call` is absent, `supported_parameters` is used; when both are absent, the OpenCode
+default is preserved for backward compatibility. The list is read when OpenCode starts and again
 every hour. If Magpie can't be reached, the last list saved in
 `$XDG_CACHE_HOME/opencode-magpie-models/<id>.json` is used.
 
@@ -19,7 +21,7 @@ OpenCode downloads it from the registry itself, so there is nothing to install b
 {
   "plugins": [
     {
-      "package": "opencode-magpie-models@0.1.1",
+      "package": "opencode-magpie-models@0.2.0",
       "options": {
         "baseURL": "https://magpie.example.com/v1",
         "keyFile": "~/.secrets/magpie-key", // file holding a Magpie gateway key

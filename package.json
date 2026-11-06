@@ -1,7 +1,7 @@
 {
   "name": "opencode-magpie-models",
-  "version": "0.1.1",
-  "description": "OpenCode V2 plugin: Magpie gateway models (names, limits, input types, reasoning levels) from its /v1/models, kept fresh",
+  "version": "0.2.0",
+  "description": "OpenCode V2 plugin: sync Magpie model names, limits, modalities, tool support and reasoning levels from /v1/models",
   "type": "module",
   "exports": {
     ".": "./index.ts"

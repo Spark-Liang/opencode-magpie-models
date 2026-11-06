@@ -10,14 +10,18 @@ type Raw = {
   display_name?: string
   context_window?: number
   context_length?: number
+  max_input_tokens?: number
   max_output_tokens?: number
   modalities?: { input?: string[]; output?: string[] }
+  tool_call?: boolean
+  supported_parameters?: string[]
   reasoning?: boolean
   reasoning_levels?: string[]
 }
 
 const positive = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n > 0
 const strings = (a: unknown): a is string[] => Array.isArray(a) && a.length > 0 && a.every((s) => typeof s === "string")
+const supports = (a: unknown, name: string) => Array.isArray(a) && a.includes(name)
 
 export function toModels(providerID: string, raws: readonly Raw[]): Model.Info[] {
   const pid = Provider.ID.make(providerID)
@@ -25,11 +29,22 @@ export function toModels(providerID: string, raws: readonly Raw[]): Model.Info[]
     const base = Model.Info.default(pid, Model.ID.make(raw.id))
     // some vendors list them upper-case (Zed's Gemini: LOW); Magpie reads any case
     const levels = raw.reasoning && strings(raw.reasoning_levels) ? [...new Set(raw.reasoning_levels.map((l) => l.toLowerCase()))] : []
+    const tools = typeof raw.tool_call === "boolean"
+      ? raw.tool_call
+      : Array.isArray(raw.supported_parameters)
+        ? supports(raw.supported_parameters, "tools")
+        : base.capabilities.tools
+    const baseTemperature = (base.capabilities as { temperature?: boolean }).temperature
+    const temperature = Array.isArray(raw.supported_parameters)
+      ? supports(raw.supported_parameters, "temperature")
+      : baseTemperature
     return {
       ...base,
       name: raw.magpie_label ?? raw.display_name ?? raw.id,
       capabilities: {
         ...base.capabilities,
+        tools,
+        temperature,
         // Magpie rejects images for a model it marks blind, and OpenCode only sends what is declared
         input: strings(raw.modalities?.input) ? raw.modalities.input : ["text"],
         output: strings(raw.modalities?.output) ? raw.modalities.output : ["text"],
@@ -37,6 +52,7 @@ export function toModels(providerID: string, raws: readonly Raw[]): Model.Info[]
       variants: levels.map((e) => ({ id: Model.VariantID.make(e), settings: { reasoningEffort: e } })),
       limit: {
         context: positive(raw.context_window) ? raw.context_window : positive(raw.context_length) ? raw.context_length : base.limit.context,
+        input: positive(raw.max_input_tokens) ? raw.max_input_tokens : undefined,
         output: positive(raw.max_output_tokens) ? raw.max_output_tokens : base.limit.output,
       },
     }

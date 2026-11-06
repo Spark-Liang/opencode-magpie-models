@@ -8,6 +8,7 @@ type Raw = {
   id: string
   magpie_label?: string
   display_name?: string
+  context_window?: number
   context_length?: number
   max_output_tokens?: number
   modalities?: { input?: string[]; output?: string[] }
@@ -35,7 +36,7 @@ export function toModels(providerID: string, raws: readonly Raw[]): Model.Info[]
       },
       variants: levels.map((e) => ({ id: Model.VariantID.make(e), settings: { reasoningEffort: e } })),
       limit: {
-        context: positive(raw.context_length) ? raw.context_length : base.limit.context,
+        context: positive(raw.context_window) ? raw.context_window : positive(raw.context_length) ? raw.context_length : base.limit.context,
         output: positive(raw.max_output_tokens) ? raw.max_output_tokens : base.limit.output,
       },
     }

@@ -27,6 +27,11 @@ test("missing metadata: text only, no variants, default limits", () => {
   expect(m.limit.context).toBe(200_000)
 })
 
+test("uses Magpie's context_window field", () => {
+  const [m] = toModels("magpie", [{ id: "x", context_window: 1_000_000 }])
+  expect(m.limit.context).toBe(1_000_000)
+})
+
 test("reasoning levels are lower-cased", () => {
   const [m] = toModels("magpie", [{ id: "zed/gemini", reasoning: true, reasoning_levels: ["LOW", "HIGH"] }])
   expect(m.variants.map((v) => v.id)).toEqual(["low", "high"] as any)
